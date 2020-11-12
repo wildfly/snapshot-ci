@@ -1,0 +1,107 @@
+# Workflow to kick off a cross component build
+# It creates a branch with a generated action
+
+name: Cross Component CI Generator
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        # The personal access token must be something which has the workflow permissions
+        # (I also used repo, admin:repo_hook and user)
+        token: ${{ secrets.OB_MULTI_CI_PAT }}
+    - name: Set up JDK 11
+      uses: actions/setup-java@v1
+      with:
+        java-version: 11
+
+    # Either build the tool with Maven, or download it from the releases
+    # Maven:
+    - uses: actions/checkout@v2
+      with:
+        #repository: overbaard/multi-repo-ci
+        repository: kabir/multi-repo-ci
+        ref: development
+        path: .ci-tools
+    - name: Build with Maven
+      working-directory: .ci-tools
+      run: |
+        mvn -B package
+        echo "TOOL_JAR=.ci-tools/target/multi-repo-ci-tool.jar" >> $GITHUB_ENV
+        cp target/multi-repo-ci-tool.jar ..
+      # Download
+#    - name: Download multi-repo-ci-tool.jar
+#      run: |
+#        wget http://github.com/overbaard/multi-repo-ci/releases/latest/download/multi-repo-ci-tool.jar
+#        echo "TOOL_JAR=multi-repo-ci-tool.jar" >> $GITHUB_ENV
+
+    - name: Create branch
+      env: 
+        issue_body: ${{github.event.issue.body}}
+        issue_id: ${{github.event.issue.number}}
+      run: |
+        git branch
+        BRANCH=multi-repo-ci-branch-${issue_id}
+        git checkout -b "${BRANCH}"
+        git config --global user.email "ci@example.com"
+        git config --global user.name "CI Action"
+        touch config.yml
+        echo "${issue_body}" > config.yml
+        echo config.yml contents
+        cat config.yml
+        java -jar ${TOOL_JAR} generate-workflow --workflow-dir=.github/workflows --yaml=config.yml --issue=${issue_id} --branch=$BRANCH
+        
+        # Update the issue-data.json created by the tool to:
+        # - contain the user who updated the issue
+        TMP=${{ github.actor }}
+        tmpfile=$(mktemp)
+        jq --arg user "${TMP}" '.["trigger"]["user"]=$user' issue-data.json > "${tmpfile}"
+        mv "${tmpfile}" issue-data.json
+        # - contain the url of the issue triggering the workflow 
+        TMP=${{ github.event.issue.url }}
+        tmpfile=$(mktemp)
+        jq --arg url "${TMP}" '.["trigger"]["issue"]=$url' issue-data.json > "${tmpfile}" 
+        mv "${tmpfile}" issue-data.json        
+        
+        # Make sure .gitignore exists and that it contains .ci-tools as the generated workflow clones the
+        # branch containing it into a sub-folder with this name, which in turn gives some warnings if
+        # we don't ignore that sub-folder
+        if [[ ! -f .gitignore ]]; then
+          # Make sure .gitignore exists
+          touch .gitignore
+        fi
+        if ! grep -q .ci-tools .gitignore; then
+          # Add .ci-tools to .gitignore
+          echo .ci-tools >> .gitignore
+        fi
+        
+        # Commit and push the workflow to the branch
+        git add -A
+        git commit -m "Generated Workflow: #${issue_id} - ${{ github.event.issue.title }}"
+        git push --force origin "${BRANCH}"
+    - name: Report failure
+      env:
+        run_url: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
+        issue_id: ${{ github.event.issue.number }}
+      if: ${{ failure() }}
+      uses: actions/github-script@v3
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          await github.issues.createComment({
+            issue_number: process.env.issue_id,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: 'Something went wrong setting up the job.\n\n'
+            + 'Refer to the logs at ' + process.env.run_url,
+          })
+      

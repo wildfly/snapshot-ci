@@ -1,0 +1,66 @@
+env:
+  # Unfortunately GitHub Actions does not allow env vars to reference others so we need to duplicate the content
+  MAVEN_SMOKE_TEST_PARAMS: -DfailIfNoTests=false -Dipv6 -Djboss.test.transformers.eap -Dci-cleanup=true -fae
+  MAVEN_TEST_PARAMS: -DfailIfNoTests=false -Dipv6 -Djboss.test.transformers.eap -Dci-cleanup=true -fae -DallTests
+# build-job is the job that the components builds in the issue yaml depending on this component will depend upon
+build-job: build
+java-version: 11
+jobs:
+  # Build the server skipping tests for speed since other jobs depend on this. The maven repo is cached
+  build:
+    env:
+      MAVEN_BUILD_EXTRA_PARAMS: -DlegacyBuild -DlegacyRelease -DskipTests
+    run:
+      # Do not quote the usage of the env vars, or the quotes get wrapped in single quutes,
+      # which means they don't take effect (e.g. -DskipTests from MAVEN_BUILD_EXTRA_PARAMS will not work!)
+      - mvn: install ${MAVEN_TEST_PARAMS} ${MAVEN_BUILD_EXTRA_PARAMS}
+      - shell: echo "build done!"
+
+  #####################################
+  # Parallel tests - depend on wildfly-core-build
+
+  # Build the server again and run all the unit and smoke tests
+  # it is different from the other testsuite tests in that we want to build everything up to and including
+  # the smoke tests
+
+  ts-smoke:
+    # This does the unit tests for all the components and the testsuite
+    # moduled which are run when not passing in -DallTests, i.e.
+    # - standalone
+    # - elytron
+    # - embedded
+    # - scripts
+    needs: [build]
+    run:
+      - mvn: package ${MAVEN_SMOKE_TEST_PARAMS}
+
+
+  ts-domain:
+    needs: [build]
+    run:
+      - mvn: package ${MAVEN_TEST_PARAMS} -pl testsuite/domain -Dts.timeout.factor=300
+
+  ts-layers:
+    needs: [build]
+    run:
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.layers -pl testsuite/layers
+
+  ts-manualmode:
+    needs: [build]
+    run:
+      - mvn: package ${MAVEN_TEST_PARAMS} -pl testsuite/manualmode
+
+  ts-patching:
+    needs: [build]
+    run:
+      - mvn: package ${MAVEN_TEST_PARAMS} -pl testsuite/patching
+
+  ts-rbac:
+    needs: [build]
+    run:
+      - mvn: package ${MAVEN_TEST_PARAMS} -pl testsuite/rbac
+
+  # TODO - add all the other modules
+
+  #####################################
+  # Parallel tests - END

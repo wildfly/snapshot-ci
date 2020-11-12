@@ -1,0 +1,129 @@
+# Reproducer Template Workflow Yaml File
+#
+#
+# To use it to reproduce a failure:
+#   * Make adjustments as indicated in the comments. These are:
+#     - (Optional) Set up checkout and build of dependencies, making sure that checkout's 'path'
+#       and run's 'working-dir' match
+#     - Adjust the repository and ref of the 'Clone Main Component' step
+#     - Choose the Java version in the 'Install Java' step
+#     - If you needed some dependencies built, specify those as -Dversion property overrides
+#       in the 'Build Main Component' step
+#     - Adjust and uncomment the 'Run Tests' step. If you needed some dependencies built,
+#       specify those as -Dversion property overrides
+#   * copy it to the .github/workflows folder
+#
+# It will get run every time you update this and push. To populate the Maven cache to
+# save time when rerunning (this only happens on a successful build) make sure to run
+# it first without enabling the 'Run Tests' step. The step is commented out in this
+# template to help you remember to do this.
+#
+# If you need SSH access, you can uncomment the 'Setup Tmate Session' to get access
+# to a built server. It isn't perfect, but should work eventually. See
+# https://github.com/mxschmitt/action-tmate for more details of how to use it.
+
+
+name: Test Failure Reproducer
+'on':
+  push:
+env:
+  MAVEN_OPTS: -Xms756M -Xmx1g
+jobs:
+  reproducer-build-and-test:
+    name: reproducer-build-and-test
+    runs-on:
+    - ubuntu-latest
+    env:
+      MAVEN_SMOKE_TEST_PARAMS: -DfailIfNoTests=false -Dipv6 -Djboss.test.transformers.eap
+        -Dci-cleanup=true -fae
+      MAVEN_TEST_PARAMS: -DfailIfNoTests=false -Dipv6 -Djboss.test.transformers.eap
+        -Dci-cleanup=true -fae -DallTests
+      MAVEN_BUILD_EXTRA_PARAMS: -DlegacyBuild -DlegacyRelease -DskipTests
+      OB_ARTIFACTS_DIR: .ci-tools/artifacts
+      OB_STATUS_TEXT: .ci-tools/artifacts/status-text.txt
+      OB_MAVEN_DEPENDENCY_VERSIONS: ''
+    steps:
+      # !!!!! Dependencies - START !!!!!
+      #
+      # Do one of these blocks for each dependency that needs to be built
+#       - uses: actions/checkout@v2
+#         with:
+#           # The repository to use
+#           repository: org/repo
+#           # Branch,tag etc.
+#           ref: reference
+#           # Sub-folder to clone the repository into
+#           # Must be what is used in working-directory in the next run step
+#           path: .dependencyA
+#       - name: Build dependency
+#         # The working directory should match path of the previous checkout step
+#         working-directory: .dependencyA
+#         # Adjust build command as needed
+#         run: mvn install -DskipTests
+      # !!!!! Dependencies - END !!!!!
+      
+      - name: Clone Main Component
+        uses: actions/checkout@v2
+        with:
+          # Adjust for wildFly or WildFly Core as needed
+          repository: kabir/wildfly
+          # WildFly or WildFly Core branch here
+          ref: gh-action-fixes
+
+      - name: Pull down Maven Cache
+        # It is a good idea to do a run without tests first, as the cache only gets
+        # populated after a successful build. Since you are investigating failing
+        # tests, that probably will not happen!
+        uses: actions/cache@v1
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-maven-
+
+      - name: Install Java
+        uses: actions/setup-java@v1
+        with:
+          # Set Java version here
+          java-version: '8'
+
+      - name: Add '::1 localhost' to hosts file
+        # (needed for IPv6 tests since GH runners don't have entry)
+        run: sudo bash -c 'echo ::1 localhost >> /etc/hosts'
+        
+      - name: Build Main Component
+        # This uses -DskipTests to separate it from the test code
+        #
+        # If the branch relies on some built dependencies, make sure to specify them
+        # here with -Dversion property overrides!
+        run: |
+          mvn -B install ${MAVEN_TEST_PARAMS} ${MAVEN_BUILD_EXTRA_PARAMS}
+          echo build done!
+          
+      # To be able to SSH in and run the tests manually, uncomment this action.
+      # You can make changes locally, push to the branch and then
+      # See https://github.com/mxschmitt/action-tmate
+#       - name: Setup Tmate Session
+#         uses: mxschmitt/action-tmate@v3
+
+      # This is left commented out initially to get the Maven cache populated.
+      # Otherwise each re-run takes forever downloading from Maven.
+      - name: Run Tests
+        # Choose the tests to run via -pl, -Dtest=... and so on.
+        #
+        # If the branch relies on some built dependencies, make sure to specify them
+        # here with -Dversion property overrides!
+        run: mvn -B package ${MAVEN_TEST_PARAMS} -pl testsuite/integration/vdx
+        
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2.2.0
+        # If you want to keep the logs when it all works as well as fails,
+        # change 'failure()' to 'always()'
+        if: failure()
+        with:
+          name: reproducer
+          if-no-files-found: warn
+          path: |
+            **/surefire-reports/*.txt
+            **/surefire-reports/*.xml
+            **/*.log
+            
