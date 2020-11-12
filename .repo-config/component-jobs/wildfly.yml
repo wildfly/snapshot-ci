@@ -1,0 +1,180 @@
+env:
+  MAVEN_TEST_BUILD_DEPS: install -pl build,dist,ee-dist,ee-build -DskipTests
+  # Unfortunately GitHub Actions does not allow env vars to reference others so we need to duplicate the content
+  MAVEN_TEST_PARAMS: -DfailIfNoTests=false -Dipv6 -Djboss.test.transformers.eap -Dci-cleanup=true -fae
+# build-job is the job that the components builds in the issue yaml depending on this component will depend upon
+build-job: build
+jobs:
+  # Build the server skipping tests for speed since other jobs depend on this. The maven repo is cached
+  build:
+    env:
+      MAVEN_BUILD_EXTRA_PARAMS: -DlegacyBuild -DlegacyRelease -DskipTests
+    run:
+      # Do not quote the usage of the env vars, or the quotes get wrapped in single quutes,
+      # which means they don't take effect (e.g. -DskipTests from MAVEN_BUILD_EXTRA_PARAMS will not work!)
+      - mvn: install ${MAVEN_TEST_PARAMS} ${MAVEN_BUILD_EXTRA_PARAMS}
+
+  #####################################
+  # Parallel tests - depend on wildfly-core-build
+
+  # Build the server again and run all the unit and smoke tests
+  # it is different from the other testsuite tests in that we want to build everything up to and including
+  # the smoke tests
+  ts-smoke:
+    needs: [build]
+    run:
+      - mvn: package ${MAVEN_TEST_PARAMS}
+
+  ts-basic:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      # Run tests that are skipped on ipv6
+      - mvn: package ${MAVEN_IPV4_TEST_PARAMS} -Dts.basic -pl testsuite/integration/basic/ -Dtest=DiscoveryGroupExternalMessagingDeploymentTestCase
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.basic -pl testsuite/integration/basic/,testsuite/integration/ws/
+
+  #  ts-clustering:
+  #    needs: [build]
+  #    run:
+  #      # We need to rebuild the dists again, hence the initial install
+  #      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+  #      # - mvn: package ${MAVEN_TEST_PARAMS} -Dts.clustering -pl testsuite/integration/clustering/ -Dts.timeout.factor=300
+  #      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.clustering -pl testsuite/integration/clustering/
+
+  ts-clustering-1:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      # - mvn: package ${MAVEN_TEST_PARAMS} -Dts.clustering -pl testsuite/integration/clustering/ -Dts.timeout.factor=300
+      - mvn: package ${MAVEN_TEST_PARAMS} -pl testsuite/integration/clustering/ -Dts.noSmoke -Dts.clustering -P \!ts.clustering.cluster.fullha.profile,\!ts.clustering.single.profile,\!ts.clustering.byteman.profile -Dts.surefire.clustering.ha.additionalExcludes=affinity\|cdi\|dispatcher\|ejb\|ejb2\|group\|jms\|jpa
+
+  ts-clustering-2:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      # - mvn: package ${MAVEN_TEST_PARAMS} -Dts.clustering -pl testsuite/integration/clustering/ -Dts.timeout.factor=300
+      - mvn: package ${MAVEN_TEST_PARAMS} -pl testsuite/integration/clustering/ -Dts.noSmoke -Dts.clustering -Dts.surefire.clustering.ha.additionalExcludes=jsf\|provider\|registry\|singleton\|sso\|web\|xsite
+
+
+  ts-domain:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.domain -pl testsuite/domain
+
+  ts-elytron:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dinteg.module -Dts.elytron -pl testsuite/integration/elytron
+
+  ts-iiop:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.iiop -pl testsuite/integration/iiop
+
+  ts-legacy:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.legacy -pl testsuite/integration/legacy
+
+  ts-legacy-ejb-client:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.legacy.ejb.client -pl testsuite/integration/legacy-ejb-client
+
+  ts-manualmode:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.manualmode -pl testsuite/integration/manualmode/
+
+  ts-microprofile:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.microprofile -rf testsuite/integration/microprofile
+
+  ts-multinode:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      # Add -DforkMode=always since the database timer tests seem to have some timing issues setting up and
+      # tearing down the H2 database otherwise
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.multinode -rf testsuite/integration/multinode -DforkMode=always
+
+  ts-rbac:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.rbac -pl testsuite/integration/rbac
+
+  ts-rts:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.rts -pl testsuite/integration/rts
+
+  ts-secman:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.secman -pl testsuite/integration/secman
+
+  ts-vdx:
+    needs: [build]
+    # These tests need Java 11 in this environment
+    java-version: 11
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      - mvn: package ${MAVEN_TEST_PARAMS} -DallTests -pl testsuite/integration/vdx -DtestLogToFile=false
+
+  ts-xts:
+    needs: [build]
+    run:
+      # We need to rebuild the dists again, hence the initial install
+      - mvn: ${MAVEN_TEST_BUILD_DEPS}
+      - mvn: package ${MAVEN_TEST_PARAMS} -Dts.xts -rf testsuite/integration/xts
+
+    #####################################
+    # Parallel tests - END
+
+end-job:
+  # TODO change to success() once we are more stable
+  if: ${{ always() }}
+  steps:
+    - uses: actions/checkout@v2
+      with:
+        repository: wildfly/wildfly-s2i
+        path: .maven-repo-generator
+    - run: |
+        # Important to remember ${OB_MAVEN_DEPENDENCY_VERSIONS} here!
+        mvn install -pl dist -Prelease ${OB_MAVEN_DEPENDENCY_VERSIONS}
+        cat dist/target/wildfly-galleon-pack-${OB_PROJECT_VERSION}-all-artifacts-list.txt
+        mv dist/target/wildfly-${OB_PROJECT_VERSION}.zip ${OB_ARTIFACTS_DIR}/wildfly.zip
+    - name: Back up maven repo zip
+      run: |
+        cd tools/maven-repo-generator
+        mvn install
+        java -jar target/maven-repo-generator-1.0.jar ../../../dist/target/wildfly-galleon-pack-${OB_PROJECT_VERSION}-all-artifacts-list.txt
+        mv maven-repo.zip ${OB_ARTIFACTS_DIR}/maven-repo.zip
+        ls -al ${OB_ARTIFACTS_DIR}
+      working-directory: .maven-repo-generator
