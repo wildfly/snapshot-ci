@@ -1,5 +1,5 @@
 env:
-  MAVEN_TEST_BUILD_DEPS: install -pl build,dist,ee-dist,ee-build -DskipTests
+  MAVEN_TEST_BUILD_DEPS: install -pl ee-feature-pack/galleon-feature-pack,galleon-pack,build,dist,ee-dist,ee-build -DskipTests
   # Unfortunately GitHub Actions does not allow env vars to reference others so we need to duplicate the content
   MAVEN_TEST_PARAMS: -DfailIfNoTests=false -Dipv6 -Djboss.test.transformers.eap -Dci-cleanup=true -fae
 # build-job is the job that the components builds in the issue yaml depending on this component will depend upon
