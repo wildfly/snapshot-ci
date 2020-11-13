@@ -87,7 +87,7 @@ jobs:
         # If the branch relies on some built dependencies, make sure to specify them
         # here with -Dversion property overrides!
         run: |
-          mvn -B install ${MAVEN_TEST_PARAMS} ${MAVEN_BUILD_EXTRA_PARAMS}
+          mvn -B install -DskipTests 
           echo build done!
           
       # To be able to SSH in and run the tests manually, uncomment this action.
