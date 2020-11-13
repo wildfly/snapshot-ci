@@ -6,50 +6,50 @@ issue-reporting:
   labels:
    success: CI-Success
    failure: CI-Failure
-# end-job:
-#   if: ${{ always() }}
-#   runs-on:
-#     - end-job
-#   steps:
+end-job:
+  if: ${{ always() }}
+  runs-on:
+    - end-job
+  steps:
 #     - name: Dump GitHub context
 #       env:
 #         GITHUB_CONTEXT: ${{ toJson(github) }}
 #       run: echo "$GITHUB_CONTEXT"
-#     - name: test
-#       run: |
-#         ls -al ${OB_ARTIFACTS_DIR}
-#         IP_ADDR=$(hostname -I)
-#         # Remove spaces - note if the machine has more than one network interface they
-#         # will all be returned, and I am not handling that at the moment
-#         IP_ADDR="$(echo $IP_ADDR | sed -e 's/^[[:space:]]*//')"
-#         TGT_FOLDER=/var/www/html/issue-${OB_ISSUE_ID}
-#         sudo rm -rf ${TGT_FOLDER}/*
-#         sudo mkdir -p ${TGT_FOLDER}
-#         if [ -f ${OB_ARTIFACTS_DIR}/wildfly.zip ]; then
-#           sudo cp ${OB_ARTIFACTS_DIR}/wildfly.zip ${TGT_FOLDER}
-#         fi
-#         if [ -f ${OB_ARTIFACTS_DIR}/maven-repo.zip ]; then
-#           sudo cp ${OB_ARTIFACTS_DIR}/maven-repo.zip ${TGT_FOLDER}
-#         fi
-#         # Link to the artifacts
-#         BASE_URL=http://${IP_ADDR}/issue-${OB_ISSUE_ID}
-#         echo Artifacts can be downloaded from: ${BASE_URL} >> $OB_STATUS_TEXT
-#         # Link to the workflow
-#         echo The workflow run is at: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}} >> $OB_STATUS_TEXT
-#
-#         # Add the server zip and the maven repo zip to the json file
-#         # Copy the json file first so we don't modify the original from the branch, and then modify the downloadable copy
-#         FINAL_JSON="${TGT_FOLDER}/../issue-${OB_ISSUE_ID}.json"
-#         sudo cp "${OB_ISSUE_DATA_JSON}" "${FINAL_JSON}"
-#         # server
-#         tmpfile=$(mktemp)
-#         sudo jq --arg path "${BASE_URL}/wildfly.zip" '.["downloads"].server=$path' "${FINAL_JSON}" > "${tmpfile}"
-#         sudo mv "${tmpfile}" "${FINAL_JSON}"
-#         # maven repo
-#         tmpfile=$(mktemp)
-#         sudo jq --arg path "${BASE_URL}/maven-repo.zip" '.["downloads"]."maven-repo"=$path' "${FINAL_JSON}" > "${tmpfile}"
-#         sudo mv "${tmpfile}" "${FINAL_JSON}"
-#         # Make permissions same as other files
-#         sudo chown root "${FINAL_JSON}"
-#         sudo chown root "${FINAL_JSON}"
-#         sudo chmod 644 "${FINAL_JSON}"
+    - name: Copy to download location
+      run: |
+        ls -al ${OB_ARTIFACTS_DIR}
+        IP_ADDR=$(hostname -I)
+        # Remove spaces - note if the machine has more than one network interface they
+        # will all be returned, and I am not handling that at the moment
+        IP_ADDR="$(echo $IP_ADDR | sed -e 's/^[[:space:]]*//')"
+        TGT_FOLDER=/var/www/html/issue-${OB_ISSUE_ID}
+        sudo rm -rf ${TGT_FOLDER}/*
+        sudo mkdir -p ${TGT_FOLDER}
+        if [ -f ${OB_ARTIFACTS_DIR}/wildfly.zip ]; then
+          sudo cp ${OB_ARTIFACTS_DIR}/wildfly.zip ${TGT_FOLDER}
+        fi
+        if [ -f ${OB_ARTIFACTS_DIR}/maven-repo.zip ]; then
+          sudo cp ${OB_ARTIFACTS_DIR}/maven-repo.zip ${TGT_FOLDER}
+        fi
+        # Link to the artifacts
+        BASE_URL=http://${IP_ADDR}/issue-${OB_ISSUE_ID}
+        echo Artifacts can be downloaded from: ${BASE_URL} >> $OB_STATUS_TEXT
+        # Link to the workflow
+        echo The workflow run is at: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}} >> $OB_STATUS_TEXT
+
+        # Add the server zip and the maven repo zip to the json file
+        # Copy the json file first so we don't modify the original from the branch, and then modify the downloadable copy
+        FINAL_JSON="${TGT_FOLDER}/../issue-${OB_ISSUE_ID}.json"
+        sudo cp "${OB_ISSUE_DATA_JSON}" "${FINAL_JSON}"
+        # server
+        tmpfile=$(mktemp)
+        sudo jq --arg path "${BASE_URL}/wildfly.zip" '.["downloads"].server=$path' "${FINAL_JSON}" > "${tmpfile}"
+        sudo mv "${tmpfile}" "${FINAL_JSON}"
+        # maven repo
+        tmpfile=$(mktemp)
+        sudo jq --arg path "${BASE_URL}/maven-repo.zip" '.["downloads"]."maven-repo"=$path' "${FINAL_JSON}" > "${tmpfile}"
+        sudo mv "${tmpfile}" "${FINAL_JSON}"
+        # Make permissions same as other files
+        sudo chown root "${FINAL_JSON}"
+        sudo chown root "${FINAL_JSON}"
+        sudo chmod 644 "${FINAL_JSON}"
