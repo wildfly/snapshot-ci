@@ -33,15 +33,6 @@ jobs:
     name: reproducer-build-and-test
     runs-on:
     - ubuntu-latest
-    env:
-      MAVEN_SMOKE_TEST_PARAMS: -DfailIfNoTests=false -Dipv6 -Djboss.test.transformers.eap
-        -Dci-cleanup=true -fae
-      MAVEN_TEST_PARAMS: -DfailIfNoTests=false -Dipv6 -Djboss.test.transformers.eap
-        -Dci-cleanup=true -fae -DallTests
-      MAVEN_BUILD_EXTRA_PARAMS: -DlegacyBuild -DlegacyRelease -DskipTests
-      OB_ARTIFACTS_DIR: .ci-tools/artifacts
-      OB_STATUS_TEXT: .ci-tools/artifacts/status-text.txt
-      OB_MAVEN_DEPENDENCY_VERSIONS: ''
     steps:
       # !!!!! Dependencies - START !!!!!
       #
@@ -53,10 +44,10 @@ jobs:
 #           # Branch,tag etc.
 #           ref: reference
 #           # Sub-folder to clone the repository into
-#           # Must be what is used in working-directory in the next run step
+#           # Must be what is used in 'working-directory' in the next run step
 #           path: .dependencyA
 #       - name: Build dependency
-#         # The working directory should match path of the previous checkout step
+#         # 'working-directory' should match 'path' of the previous checkout step
 #         working-directory: .dependencyA
 #         # Adjust build command as needed
 #         run: mvn install -DskipTests
@@ -66,11 +57,11 @@ jobs:
         uses: actions/checkout@v2
         with:
           # Adjust for wildFly or WildFly Core as needed
-          repository: kabir/wildfly
+          repository: wildfly/wildfly
           # WildFly or WildFly Core branch here
-          ref: gh-action-fixes
+          ref: master
 
-      - name: Pull down Maven Cache
+      - name: Pull Down Maven Cache
         # It is a good idea to do a run without tests first, as the cache only gets
         # populated after a successful build. Since you are investigating failing
         # tests, that probably will not happen!
@@ -107,12 +98,15 @@ jobs:
 
       # This is left commented out initially to get the Maven cache populated.
       # Otherwise each re-run takes forever downloading from Maven.
-      - name: Run Tests
-        # Choose the tests to run via -pl, -Dtest=... and so on.
-        #
-        # If the branch relies on some built dependencies, make sure to specify them
-        # here with -Dversion property overrides!
-        run: mvn -B package ${MAVEN_TEST_PARAMS} -pl testsuite/integration/vdx
+#       - name: Run Tests
+#         env:
+#           MAVEN_TEST_PARAMS: -DfailIfNoTests=false -Dipv6 -Djboss.test.transformers.eap
+#             -Dci-cleanup=true -fae -DallTests
+#         # Choose the tests to run via -pl, -Dtest=... and so on.
+#         #
+#         # If the branch relies on some built dependencies, make sure to specify them
+#         # here with -Dversion property overrides!
+#         run: mvn -B package ${MAVEN_TEST_PARAMS} -pl <your modules>
         
       - name: Upload artifacts
         uses: actions/upload-artifact@v2.2.0
