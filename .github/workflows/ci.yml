@@ -31,17 +31,21 @@ jobs:
         repository: overbaard/multi-repo-ci
         ref: master
         path: .ci-tools
-    - name: Build with Maven
-      working-directory: .ci-tools
-      run: |
-        mvn -B package
-        echo "TOOL_JAR=.ci-tools/target/multi-repo-ci-tool.jar" >> $GITHUB_ENV
-        cp target/multi-repo-ci-tool.jar ..
+      # Build it
+#     - name: Build with Maven
+#       working-directory: .ci-tools
+#       run: |
+#         mvn -B package
+#         echo "TOOL_JAR=.ci-tools/target/multi-repo-ci-tool.jar" >> $GITHUB_ENV
+#         cp target/multi-repo-ci-tool.jar ..
       # Download
-#    - name: Download multi-repo-ci-tool.jar
-#      run: |
-#        wget http://github.com/overbaard/multi-repo-ci/releases/latest/download/multi-repo-ci-tool.jar
-#        echo "TOOL_JAR=multi-repo-ci-tool.jar" >> $GITHUB_ENV
+    - name: Download multi-repo-ci-tool.jar
+      env:
+        LATEST_RELESE: http://github.com/overbaard/multi-repo-ci/releases/latest/download/multi-repo-ci-tool.jar
+        HARDCODED_RELEASE: https://github.com/overbaard/multi-repo-ci/releases/download/1.0.0.Alpha3/multi-repo-ci-tool.jar
+      run: |
+        wget ${HARDCODED_RELEASE}
+        echo "TOOL_JAR=multi-repo-ci-tool.jar" >> $GITHUB_ENV
 
     - name: Create branch
       env: 
