@@ -51,6 +51,7 @@ jobs:
       env: 
         issue_body: ${{github.event.issue.body}}
         issue_id: ${{github.event.issue.number}}
+        issue_title: ${{ github.event.issue.title }}"
       run: |
         git branch
         BRANCH=multi-repo-ci-branch-${issue_id}
@@ -89,7 +90,7 @@ jobs:
         
         # Commit and push the workflow to the branch
         git add -A
-        git commit -m "Generated Workflow: #${issue_id} - ${{ github.event.issue.title }}"
+        git commit -m "Generated Workflow: #${issue_id} - ${issue_title}"
         git push --force origin "${BRANCH}"
     - name: Report failure
       env:
